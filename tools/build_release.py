@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from task_assignment.infrastructure.gmail.oauth import OAuthClientConfig
+from task_assignment.version import APP_VERSION, RELEASE_UPDATED_AT
 
 FORBIDDEN_SUFFIXES = {".db", ".sqlite", ".sqlite3"}
 FORBIDDEN_FILENAMES = {
@@ -106,7 +107,8 @@ def build_release(project_root: Path, output_name: str) -> tuple[Path, Path, Sca
     release_dir.mkdir(parents=True, exist_ok=True)
     manifest = {
         "app": "Task Assignment",
-        "version": "9.0.0.dev0",
+        "version": APP_VERSION,
+        "release_updated_at": RELEASE_UPDATED_AT,
         "candidate_kind": "personal-use-local-validation",
         "file_count": scan.file_count,
         "total_bytes": scan.total_bytes,
@@ -146,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--output",
-        default="TaskAssignment-v9.0.0-dev-local-win64.zip",
+        default=f"TaskAssignment-v{APP_VERSION}-testing-win64.zip",
         help="ZIP file name written under release/",
     )
     args = parser.parse_args(argv)
