@@ -198,6 +198,18 @@ QListWidget, QTableWidget { background: #fff; border: 1px solid #e2deea;
 QTableWidget { gridline-color: #eeebf3; alternate-background-color: #faf9fc; }
 QHeaderView::section { background: #f1eef7; border: none; padding: 9px; color: #74738a; }
 QTableWidget#todayTasksTable { background: transparent; border: none; padding: 0; }
+QTableWidget#todayTasksTable::item { background: #ffffff; border-bottom: 1px solid #eeeaf5; }
+QFrame#reviewNameCell, QFrame#reviewNoteCell { background: #ffffff; }
+QLabel#reviewTaskName { color: #252d49; font-size: 18px; font-weight: 800; }
+QLabel#reviewTaskMetadata, QLabel#reviewNoteHeading { color: #807b94; font-size: 12px; }
+QLabel#reviewTaskNote { color: #4e5673; font-size: 16px; }
+QFrame#todayTaskActionCell { background: #faf8ff; border-left: 1px solid #e8e1f2; }
+QPushButton#inlineCompleteButton, QPushButton#inlinePostponeButton {
+    min-width: 112px; min-height: 28px;
+}
+QPushButton#inlineCompleteButton { background: #7460b4; color: #ffffff; border-color: #7460b4; }
+QPushButton#inlineCompleteButton:hover:enabled { background: #6551a3; }
+QPushButton#inlinePostponeButton { background: #f0ecfa; color: #5f5284; }
 QCalendarWidget { background: white; border: 1px solid #e5dfef; border-radius: 16px; }
 QCalendarWidget QWidget#qt_calendar_navigationbar { background: #ede7fa; }
 QCalendarWidget QToolButton { color: #54447d; background: transparent; padding: 10px;
@@ -227,7 +239,7 @@ QGroupBox::title { color: #685987; subcontrol-origin: margin; left: 12px; paddin
 QFrame#backupWarning { background: #fcf1db; border-radius: 10px; }
 QLabel#validationMessage { color: #b15361; }
 QLabel#validationMessage[valid="true"] { color: #56806a; }
-QLabel#stickerOverlay { background: transparent; }
+QLabel#stickerOverlay { background: #ffffff; border: 2px solid #d9c9f1; border-radius: 999px; }
 QLabel#stickerPreview { background: #fff; border: 1px solid #e2deea; border-radius: 12px; }
 QScrollBar:vertical { background: #f1eef5; width: 8px; border: none; }
 QScrollBar::handle:vertical { background: #c6bed6; min-height: 26px; border-radius: 4px; }

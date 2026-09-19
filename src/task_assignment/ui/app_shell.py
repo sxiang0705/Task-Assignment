@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, Qt, QTimer
-from PySide6.QtGui import QCloseEvent, QPixmap, QResizeEvent, QShowEvent
+from PySide6.QtGui import QCloseEvent, QPixmap, QRegion, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -58,10 +58,8 @@ class AppShell(QMainWindow):
         super().__init__(parent)
         self.paths = paths
         self.services = services
-        self._ui_scale = self._read_interface_scale()
-        application = QApplication.instance()
-        if application is not None:
-            application.setProperty("taskAssignmentScale", self._ui_scale)
+        self._ui_scale = 1.0
+        self._scale_update_in_progress = False
         self._operation_owner = None
         self._import_in_progress = False
         self._restart_pending = False
@@ -70,6 +68,10 @@ class AppShell(QMainWindow):
         self.setWindowTitle("Task Assignment")
         self.setMinimumSize(720, 480)
         self.resize(1180, 760)
+        self._ui_scale = self._read_interface_scale()
+        application = QApplication.instance()
+        if application is not None:
+            application.setProperty("taskAssignmentScale", self._ui_scale)
 
         root = QWidget(self)
         root.setObjectName("appRoot")
@@ -97,6 +99,13 @@ class AppShell(QMainWindow):
         self.brand_label.setWordWrap(True)
         self.brand_label.setObjectName("brandLabel")
         navigation_layout.addWidget(self.brand_label)
+        self.sticker_label = QLabel(navigation)
+        self.sticker_label.setObjectName("stickerOverlay")
+        self.sticker_label.setFixedSize(scaled(112), scaled(112))
+        self.sticker_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.sticker_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.sticker_label.hide()
+        navigation_layout.addWidget(self.sticker_label, alignment=Qt.AlignmentFlag.AlignHCenter)
         navigation_layout.addSpacing(14)
 
         self.page_stack = QStackedWidget(root)
@@ -126,12 +135,6 @@ class AppShell(QMainWindow):
         root_layout.addWidget(navigation)
         root_layout.addWidget(self.page_stack, 1)
         self.setCentralWidget(root)
-        self.sticker_label = QLabel(navigation)
-        self.sticker_label.setObjectName("stickerOverlay")
-        self.sticker_label.setFixedSize(scaled(112), scaled(112))
-        self.sticker_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.sticker_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.sticker_label.hide()
         dashboard = self.page_widgets["dashboard"]
         if isinstance(dashboard, DashboardPage):
             dashboard.navigate_requested.connect(self.show_page_by_id)
@@ -196,7 +199,7 @@ class AppShell(QMainWindow):
 
     def _move_indicator(self, button) -> None:
         target = button.geometry().adjusted(-button.x(), 6, 0, -6)
-        target.setWidth(4)
+        target.setWidth(scaled(4))
         self.indicator_motion.stop()
         self.indicator_motion.setDuration(getattr(self, "_motion_duration", 0))
         self.indicator_motion.setStartValue(self.active_indicator.geometry())
@@ -291,16 +294,7 @@ class AppShell(QMainWindow):
 
     def apply_appearance(self) -> None:
         mode = self.services.settings.get("interface_motion", "full")
-        self._ui_scale = self._read_interface_scale()
-        application = QApplication.instance()
-        if application is not None:
-            application.setProperty("taskAssignmentScale", self._ui_scale)
-        self._apply_style()
-        self.navigation_frame.setMinimumWidth(scaled(170))
-        self.navigation_frame.setMaximumWidth(scaled(240))
-        for button in self.navigation_buttons.values():
-            button.setMinimumHeight(scaled(44))
-        self.sticker_label.setFixedSize(scaled(112), scaled(112))
+        self._apply_interface_scale(self._read_interface_scale())
         self._motion_duration = {"full": 210, "reduced": 90, "off": 0}.get(mode, 210)
         self.indicator_motion.stop()
         for widget in self.findChildren(QWidget):
@@ -357,12 +351,15 @@ class AppShell(QMainWindow):
                 Qt.TransformationMode.SmoothTransformation,
             )
         )
+        self.sticker_label.setMask(QRegion(self.sticker_label.rect(), QRegion.RegionType.Ellipse))
         self._position_sticker()
         self.sticker_label.show()
         self.sticker_label.raise_()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
+        if hasattr(self, "page_widgets"):
+            self._apply_interface_scale(self._read_interface_scale())
         self._position_sticker()
         reviews = self.page_widgets.get("reviews")
         if reviews is not None:
@@ -380,17 +377,41 @@ class AppShell(QMainWindow):
     def _position_sticker(self) -> None:
         if not hasattr(self, "sticker_label"):
             return
-        margin = 18
-        self.sticker_label.move(
-            (self.navigation_frame.width() - self.sticker_label.width()) // 2,
-            self.navigation_frame.height() - self.sticker_label.height() - margin,
-        )
+        self.sticker_label.setMask(QRegion(self.sticker_label.rect(), QRegion.RegionType.Ellipse))
 
     def _apply_style(self) -> None:
         self.setStyleSheet(theme_for_scale(self._ui_scale))
 
+    def _apply_interface_scale(self, scale: float) -> None:
+        if self._scale_update_in_progress or abs(self._ui_scale - scale) < 0.01:
+            return
+        self._scale_update_in_progress = True
+        try:
+            self._ui_scale = scale
+            application = QApplication.instance()
+            if application is not None:
+                application.setProperty("taskAssignmentScale", self._ui_scale)
+            self._apply_style()
+            self.navigation_frame.setMinimumWidth(scaled(170))
+            self.navigation_frame.setMaximumWidth(scaled(240))
+            for button in self.navigation_buttons.values():
+                button.setMinimumHeight(scaled(44))
+            self.sticker_label.setFixedSize(scaled(112), scaled(112))
+            self.sticker_label.setMask(
+                QRegion(self.sticker_label.rect(), QRegion.RegionType.Ellipse)
+            )
+            self._position_sticker()
+            self._move_indicator(self.navigation_group.checkedButton())
+        finally:
+            self._scale_update_in_progress = False
+
     def _read_interface_scale(self) -> float:
-        value = self.services.settings.get("interface_scale", 1.0)
+        mode = self.services.settings.get("interface_scale_mode", "auto")
+        if mode == "auto":
+            width_scale = self.width() / 1180
+            height_scale = self.height() / 760
+            return min(1.5, max(0.85, min(width_scale, height_scale)))
+        value = mode
         try:
             scale = float(value)
         except (TypeError, ValueError):

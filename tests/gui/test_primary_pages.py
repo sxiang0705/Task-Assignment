@@ -401,6 +401,14 @@ def test_val_review_001_002_today_page_action_refreshes_all_pages(qtbot, tmp_pat
     dashboard.refresh()
     assert page.table.rowCount() == 1
     assert page.table.item(0, 1).text() == "今日練習"
+    action_cell = page.table.cellWidget(0, 3)
+    assert action_cell is not None
+    assert {button.text() for button in action_cell.findChildren(QPushButton)} >= {
+        "完成",
+        "推到明天",
+    }
+    assert not page.complete_button.isVisible()
+    assert not page.postpone_button.isVisible()
     assert dashboard.metrics["due"].text() == "1"
 
     page.table.selectRow(0)
@@ -601,7 +609,13 @@ def test_val_asset_001_004_005_personalization_page_applies_assets(
     window.hide()
     window.show()
     QApplication.processEvents()
-    assert window.sticker_label.y() > window.navigation_buttons["settings"].geometry().bottom()
+    first_navigation_y = window.navigation_buttons["reviews"].geometry().top()
+    assert window.sticker_label.y() < first_navigation_y
+    assert window.sticker_label.x() >= 0
+    assert (
+        window.sticker_label.x() + window.sticker_label.width()
+        <= window.navigation_frame.width()
+    )
 
     page.background_mode_combo.setCurrentIndex(page.background_mode_combo.findData("page"))
     page.background_page_combo.setCurrentIndex(page.background_page_combo.findData("calendar"))

@@ -80,3 +80,21 @@ def test_val_gui_005_navigation_and_help_are_in_keyboard_focus_chain(
 
     assert set(window.navigation_buttons.values()).issubset(focused)
     assert window.page_widgets["reviews"].help_button in focused
+
+
+def test_interface_scale_follows_window_size_continuously(qtbot, tmp_path: Path) -> None:
+    """Automatic UI scaling responds to the actual window instead of fixed presets."""
+
+    application, window = create_application([], data_dir=tmp_path / "auto-scale")
+    qtbot.addWidget(window)
+    window.show()
+    window.resize(720, 480)
+    application.processEvents()
+    compact_scale = window._ui_scale
+    window.resize(1920, 1080)
+    application.processEvents()
+    expanded_scale = window._ui_scale
+
+    assert window.page_widgets["settings"].scale_combo.currentData() == "auto"
+    assert compact_scale < expanded_scale
+    assert expanded_scale <= 1.5

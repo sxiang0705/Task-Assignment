@@ -73,6 +73,7 @@ from task_assignment.application import (
 )
 from task_assignment.domain.enums import TaskStatus
 from task_assignment.ui.task_dialog import DateTimeDialog, TaskDetailsDialog, TaskDialog
+from task_assignment.ui.visuals import scaled
 from task_assignment.version import APP_VERSION, RELEASE_UPDATED_AT, VERSION_NUMBER
 
 STATUS_LABELS = {
@@ -235,6 +236,88 @@ class PageBase(QWidget):
         painter.fillRect(self.rect(), QColor(247, 247, 244, 155))
 
 
+class _ReviewSelectableCell(QFrame):
+    """Selectable task cell used by the three-zone review row."""
+
+    clicked = Signal()
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
+
+class _ReviewNameCell(_ReviewSelectableCell):
+    def __init__(self, item: ReviewItem, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("reviewNameCell")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 10, 10, 10)
+        layout.setSpacing(4)
+        name = QLabel(item.task_name)
+        name.setObjectName("reviewTaskName")
+        name.setWordWrap(True)
+        name.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        metadata = QLabel(
+            " · ".join(
+                value
+                for value in (
+                    item.scheduled_at.strftime(DATE_TIME_FORMAT),
+                    f"第 {item.sequence} 次",
+                    item.category.name if item.category else "未分類",
+                )
+                if value
+            )
+        )
+        metadata.setObjectName("reviewTaskMetadata")
+        metadata.setWordWrap(True)
+        metadata.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout.addWidget(name)
+        layout.addWidget(metadata)
+        layout.addStretch(1)
+
+
+class _ReviewNoteCell(_ReviewSelectableCell):
+    def __init__(self, item: ReviewItem, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("reviewNoteCell")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(4)
+        heading = QLabel("備註")
+        heading.setObjectName("reviewNoteHeading")
+        heading.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        note = QLabel(item.description or "無說明／筆記")
+        note.setObjectName("reviewTaskNote")
+        note.setWordWrap(True)
+        note.setToolTip(item.description or "無說明／筆記")
+        note.setMaximumHeight(scaled(64))
+        note.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout.addWidget(heading)
+        layout.addWidget(note)
+        layout.addStretch(1)
+
+
+class _ReviewActionCell(QFrame):
+    complete_requested = Signal()
+    postpone_requested = Signal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("todayTaskActionCell")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 12, 10)
+        layout.setSpacing(6)
+        self.complete_button = QPushButton("完成")
+        self.complete_button.setObjectName("inlineCompleteButton")
+        self.postpone_button = QPushButton("推到明天")
+        self.postpone_button.setObjectName("inlinePostponeButton")
+        self.complete_button.clicked.connect(self.complete_requested)
+        self.postpone_button.clicked.connect(self.postpone_requested)
+        layout.addWidget(self.complete_button)
+        layout.addWidget(self.postpone_button)
+        layout.addStretch(1)
+
+
 class TodayTasksPage(PageBase):
     manage_task_requested = Signal(int)
 
@@ -270,11 +353,8 @@ class TodayTasksPage(PageBase):
         summary.addWidget(refresh_button)
         self.root_layout.addLayout(summary)
 
-        self.table = _table(("類型", "任務", "分類／標籤", "筆記", "次數", "預定時間", "完成率"))
+        self.table = _table(("類型", "任務名稱", "備註", "處理"))
         self.table.setObjectName("todayTasksTable")
-        from task_assignment.ui.visuals import ReviewCardDelegate
-
-        self.table.setItemDelegate(ReviewCardDelegate(self.table))
         self.table.horizontalHeader().hide()
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(False)
@@ -282,9 +362,12 @@ class TodayTasksPage(PageBase):
         self.table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table.setMinimumHeight(150)
-        for column in range(1, 7):
-            self.table.setColumnHidden(column, True)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.setColumnHidden(0, True)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.ResizeToContents
+        )
         self.table.itemSelectionChanged.connect(self._update_actions)
         self.root_layout.addWidget(self.table, 1)
 
@@ -307,14 +390,11 @@ class TodayTasksPage(PageBase):
         self.edit_button = QPushButton("編輯時間")
         self.detail_button = QPushButton("詳細資料")
         self.manage_button = QPushButton("管理任務")
-        for button in (
-            self.complete_button,
-            self.postpone_button,
-            self.skip_button,
-            self.edit_button,
-            self.detail_button,
-            self.manage_button,
-        ):
+        # Kept as non-visible compatibility actions for keyboard/tests; visible
+        # completion actions now live on each task row.
+        self.complete_button.hide()
+        self.postpone_button.hide()
+        for button in (self.skip_button, self.edit_button, self.detail_button, self.manage_button):
             actions.addWidget(button)
         actions.addStretch(1)
         self.root_layout.addLayout(actions)
@@ -365,26 +445,41 @@ class TodayTasksPage(PageBase):
                 )
                 if value
             )
-            values = (
-                kind,
-                item.task_name,
-                category_and_tags,
-                item.description or "—",
-                f"第 {item.sequence} 次",
-                item.scheduled_at.strftime(DATE_TIME_FORMAT),
-                f"{item.completion_rate:.0f}%",
+            metadata = " · ".join(
+                value
+                for value in (
+                    kind,
+                    item.scheduled_at.strftime(DATE_TIME_FORMAT),
+                    f"第 {item.sequence} 次",
+                    category_and_tags,
+                    f"完成率 {item.completion_rate:.0f}%",
+                )
+                if value
             )
-            for column, value in enumerate(values):
-                cell = QTableWidgetItem(value)
-                if column == 0 and kind == "逾期":
-                    cell.setForeground(QColor("#b43a3a"))
-                if column == 0:
-                    cell.setToolTip("\n".join(values))
-                    cell.setData(Qt.ItemDataRole.AccessibleTextRole, "，".join(values))
-                elif column == 3:
-                    cell.setToolTip(item.description or "無說明／筆記")
-                self.table.setItem(row, column, cell)
-        self.table.resizeRowsToContents()
+            self.table.setItem(row, 0, QTableWidgetItem(kind))
+            name_item = QTableWidgetItem(item.task_name)
+            name_item.setToolTip(metadata)
+            name_item.setData(
+                Qt.ItemDataRole.AccessibleTextRole,
+                f"{item.task_name}，{metadata}，備註：{item.description or '無'}",
+            )
+            self.table.setItem(row, 1, name_item)
+            note_item = QTableWidgetItem(item.description or "無說明／筆記")
+            note_item.setToolTip(item.description or "無說明／筆記")
+            self.table.setItem(row, 2, note_item)
+            self.table.setItem(row, 3, QTableWidgetItem("完成／推到明天"))
+
+            name_cell = _ReviewNameCell(item)
+            name_cell.clicked.connect(lambda row=row: self._select_row(row))
+            note_cell = _ReviewNoteCell(item)
+            note_cell.clicked.connect(lambda row=row: self._select_row(row))
+            action_cell = _ReviewActionCell()
+            action_cell.complete_requested.connect(lambda row=row: self._complete_row(row))
+            action_cell.postpone_requested.connect(lambda row=row: self._postpone_row(row))
+            self.table.setCellWidget(row, 1, name_cell)
+            self.table.setCellWidget(row, 2, note_cell)
+            self.table.setCellWidget(row, 3, action_cell)
+            self.table.setRowHeight(row, max(scaled(96), action_cell.sizeHint().height()))
         self._update_actions()
 
     def _change_page(self, step: int) -> None:
@@ -404,6 +499,18 @@ class TodayTasksPage(PageBase):
     def _selected(self) -> ReviewItem | None:
         row = self.table.currentRow()
         return self.items[row] if 0 <= row < len(self.items) else None
+
+    def _select_row(self, row: int) -> None:
+        if 0 <= row < len(self.items):
+            self.table.selectRow(row)
+
+    def _complete_row(self, row: int) -> None:
+        self._select_row(row)
+        self._complete()
+
+    def _postpone_row(self, row: int) -> None:
+        self._select_row(row)
+        self._postpone()
 
     def _update_actions(self) -> None:
         enabled = self._selected() is not None
@@ -1709,19 +1816,16 @@ class PersonalizationPage(PageBase):
         scale_group = QGroupBox("介面縮放")
         scale_layout = QFormLayout(scale_group)
         self.scale_combo = QComboBox()
-        for label, value in (("90%（較緊湊）", 0.9), ("100%（標準）", 1.0),
-                             ("110%", 1.1), ("125%", 1.25), ("150%（較大）", 1.5)):
-            self.scale_combo.addItem(label, value)
-        current_scale = self.services.settings.get("interface_scale", 1.0)
-        try:
-            current_scale = float(current_scale)
-        except (TypeError, ValueError):
-            current_scale = 1.0
-        scale_index = self.scale_combo.findData(current_scale)
-        self.scale_combo.setCurrentIndex(scale_index if scale_index >= 0 else 1)
+        self.scale_combo.addItem("自動（依視窗大小連續調整）", "auto")
+        current_scale_mode = self.services.settings.get("interface_scale_mode", "auto")
+        scale_index = self.scale_combo.findData(current_scale_mode)
+        self.scale_combo.setCurrentIndex(scale_index if scale_index >= 0 else 0)
         self.scale_combo.currentIndexChanged.connect(self._save_scale)
         scale_layout.addRow("物件與文字大小", self.scale_combo)
-        scale_hint = QLabel("放大後會同步放大文字、按鈕、卡片與輸入區塊；設定會保存到下次啟動。")
+        scale_hint = QLabel(
+            "視窗放大時會連續放大文字、按鈕、卡片與輸入區塊；視窗縮小時會自動收斂，"
+            "不會鎖定 110% 或 125%。"
+        )
         scale_hint.setWordWrap(True)
         scale_layout.addRow("使用方式", scale_hint)
         content_layout.addWidget(scale_group)
@@ -1952,7 +2056,7 @@ class PersonalizationPage(PageBase):
 
     def _save_scale(self) -> None:
         try:
-            self.services.settings.set("interface_scale", self.scale_combo.currentData())
+            self.services.settings.set("interface_scale_mode", self.scale_combo.currentData())
         except ServiceError as exc:
             self._show_error("無法儲存介面縮放", exc)
             return
