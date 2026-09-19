@@ -13,12 +13,13 @@ from PySide6.QtGui import QImageReader
 from task_assignment.config import AppPaths
 
 MAX_ASSET_BYTES = 20 * 1024 * 1024
-SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 EXPECTED_FORMATS = {
     ".png": "png",
     ".jpg": "jpeg",
     ".jpeg": "jpeg",
     ".webp": "webp",
+    ".gif": "gif",
 }
 ASSET_KINDS = {"background", "sticker"}
 
@@ -114,7 +115,7 @@ class AssetStore:
             raise AssetValidationError("找不到選取的圖片檔案。")
         suffix = source.suffix.lower()
         if suffix not in SUPPORTED_EXTENSIONS:
-            raise AssetValidationError("只支援 PNG、JPG、JPEG 與 WebP 圖片。")
+            raise AssetValidationError("只支援 PNG、JPG、JPEG、WebP 與 GIF 圖片。")
         try:
             size = source.stat().st_size
         except OSError as exc:

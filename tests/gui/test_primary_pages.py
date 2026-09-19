@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QDate, QDateTime, QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QImage, QWheelEvent
+from PySide6.QtGui import QImage, QMovie, QWheelEvent
 from PySide6.QtWidgets import (
     QApplication,
     QDialogButtonBox,
@@ -127,6 +127,17 @@ def write_gui_image(path: Path, image_format: str, color: int) -> None:
     image = QImage(80, 60, QImage.Format.Format_RGB32)
     image.fill(color)
     assert image.save(str(path), image_format)
+
+
+def write_gui_gif(path: Path) -> None:
+    """Write a tiny valid GIF so the packaged sticker playback path is exercised."""
+
+    path.write_bytes(
+        bytes.fromhex(
+            "47494638396101000100800000000000ffffff"
+            "2c00000000010001000002014c003b"
+        )
+    )
 
 
 def test_m4_shell_uses_real_primary_pages(qtbot, tmp_path: Path) -> None:
@@ -624,3 +635,30 @@ def test_val_asset_001_004_005_personalization_page_applies_assets(
 
     assert window.page_widgets["calendar"].background_path is not None
     assert window.page_widgets["reviews"].background_path is None
+
+
+def test_val_asset_gif_sticker_is_applied_and_playing(qtbot, tmp_path: Path, monkeypatch) -> None:
+    """GIF stickers are accepted, applied to the left slot, and handed to QMovie."""
+
+    window = create_test_window(qtbot, tmp_path)
+    window.show_page_by_id("settings")
+    page = window.page_widgets["settings"]
+    assert isinstance(page, PersonalizationPage)
+    sticker_source = tmp_path / "ui-sticker.gif"
+    write_gui_gif(sticker_source)
+    monkeypatch.setattr(
+        QFileDialog,
+        "getOpenFileName",
+        lambda *_args, **_kwargs: (str(sticker_source), ""),
+    )
+
+    qtbot.mouseClick(page.upload_sticker_button, Qt.MouseButton.LeftButton)
+    qtbot.wait(80)
+
+    movie = window.sticker_label.movie()
+    assert isinstance(movie, QMovie)
+    assert movie.isValid()
+    assert (
+        window.sticker_label.x() + window.sticker_label.width()
+        <= window.navigation_frame.width()
+    )

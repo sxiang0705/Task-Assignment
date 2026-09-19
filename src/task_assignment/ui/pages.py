@@ -23,7 +23,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPen, QPixmap, QWheelEvent
+from PySide6.QtGui import QColor, QMouseEvent, QMovie, QPainter, QPen, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCalendarWidget,
@@ -328,9 +328,16 @@ class _ReviewActionCell(QFrame):
         self.postpone_button.clicked.connect(self.postpone_requested)
         for button in (self.complete_button, self.postpone_button):
             button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.apply_scale()
         layout.addWidget(self.complete_button)
         layout.addWidget(self.postpone_button)
         layout.addStretch(1)
+
+    def apply_scale(self) -> None:
+        """Keep both inline actions equal and compact when the window is resized."""
+
+        for button in (self.complete_button, self.postpone_button):
+            button.setFixedHeight(scaled(42))
 
 
 class TodayTasksPage(PageBase):
@@ -1815,9 +1822,10 @@ class PersonalizationPage(PageBase):
             "個人化設定",
             "上傳並套用自己的背景與貼圖。",
             (
-                "背景與貼圖支援 PNG、JPG、JPEG、WebP，單一檔案不可超過 20 MB。\n\n"
+                "背景與貼圖支援 PNG、JPG、JPEG、WebP、GIF，單一檔案不可超過 20 MB。\n\n"
                 "背景可套用到全部頁面，或只套用到指定頁面；選擇『不使用自訂背景』可恢復預設。\n\n"
-                "貼圖固定顯示在左側導覽下方，不提供位置或尺寸調整。刪除使用中的素材時會自動恢復預設或停用。\n\n"
+                "貼圖會顯示在主視窗左上角 Task Assignment 標題下方的圓形位置；"
+                "GIF 會持續播放。刪除使用中的素材時會自動恢復預設或停用。\n\n"
                 "Gmail 區可保存預設收件人、連結、重新授權或解除連結；程式不會要求 Gmail 密碼。"
             ),
             parent,
@@ -1920,10 +1928,11 @@ class PersonalizationPage(PageBase):
         self.sticker_combo = QComboBox()
         self.sticker_combo.setObjectName("stickerAssetCombo")
         sticker_layout.addWidget(self.sticker_combo, 0, 2, 1, 2)
-        self.sticker_enabled_check = QCheckBox("套用並顯示貼圖（主視窗左側導覽列底部）")
+        self.sticker_enabled_check = QCheckBox("套用並顯示貼圖（Task Assignment 標題下方）")
         sticker_layout.addWidget(self.sticker_enabled_check, 1, 1, 1, 3)
         sticker_location = QLabel(
-            "貼圖不會覆蓋任務內容；套用後會出現在主視窗左側深色導覽列的最下方。"
+            "貼圖不會覆蓋任務內容；套用後會出現在主視窗左側深色導覽列中，"
+            "Task Assignment 標題正下方的圓形位置。GIF 貼圖會播放動畫。"
         )
         sticker_location.setWordWrap(True)
         sticker_layout.addWidget(sticker_location, 3, 1, 1, 3)
@@ -1968,7 +1977,7 @@ class PersonalizationPage(PageBase):
         gmail_layout.setColumnStretch(3, 1)
         content_layout.addWidget(gmail_group)
 
-        self.status_label = QLabel("可上傳 PNG、JPG、JPEG、WebP；每張最多 20 MB。")
+        self.status_label = QLabel("可上傳 PNG、JPG、JPEG、WebP、GIF；每張最多 20 MB。")
         self.status_label.setObjectName("personalizationStatus")
         self.status_label.setWordWrap(True)
         content_layout.addWidget(self.status_label)
@@ -2188,7 +2197,7 @@ class PersonalizationPage(PageBase):
             self,
             f"上傳{label}",
             "",
-            "圖片 (*.png *.jpg *.jpeg *.webp)",
+            "圖片 (*.png *.jpg *.jpeg *.webp *.gif)",
         )
         if not path:
             return
@@ -2200,6 +2209,13 @@ class PersonalizationPage(PageBase):
         self.refresh()
         combo = self.background_combo if kind == "background" else self.sticker_combo
         _set_combo_data(combo, asset.id)
+        if kind == "sticker":
+            self.sticker_enabled_check.setChecked(True)
+            self._apply_sticker()
+            self.status_label.setText(
+                f"已上傳並套用「{asset.display_name}」，目前顯示在左側標題下方的圓形位置。"
+            )
+            return
         self.status_label.setText(f"已上傳「{asset.display_name}」，請按套用完成設定。")
 
     def _apply_background(self) -> None:
@@ -2262,7 +2278,9 @@ class PersonalizationPage(PageBase):
         if self.sticker_combo.currentData() is None:
             self.sticker_enabled_check.setToolTip("請先選擇已上傳的貼圖，再勾選套用。")
         else:
-            self.sticker_enabled_check.setToolTip("套用後會顯示在主視窗左側導覽列底部。")
+            self.sticker_enabled_check.setToolTip(
+                "套用後會顯示在 Task Assignment 標題下方的圓形位置。"
+            )
 
 
 class InfoPage(PageBase):
@@ -2334,6 +2352,12 @@ def _fill_asset_combo(combo: QComboBox, assets: tuple[AssetView, ...], empty_lab
 
 
 def _set_asset_preview(label: QLabel, asset_id: int | None, services: ApplicationServices) -> None:
+    previous_movie = getattr(label, "_asset_preview_movie", None)
+    if previous_movie is not None:
+        previous_movie.stop()
+        previous_movie.deleteLater()
+        label._asset_preview_movie = None
+    label.setMovie(None)
     label.clear()
     if asset_id is None:
         label.setText("目前未選擇素材")
@@ -2345,11 +2369,20 @@ def _set_asset_preview(label: QLabel, asset_id: int | None, services: Applicatio
     if asset is None or not asset.available:
         label.setText("素材檔案無法使用")
         return
+    target_size = QSize(480, 108) if label.objectName() == "assetPreview" else QSize(100, 100)
+    if asset.absolute_path.suffix.lower() == ".gif":
+        movie = QMovie(str(asset.absolute_path), parent=label)
+        movie.setCacheMode(QMovie.CacheMode.CacheAll)
+        movie.setScaledSize(target_size)
+        if movie.isValid():
+            label._asset_preview_movie = movie
+            label.setMovie(movie)
+            movie.start()
+            return
     pixmap = QPixmap(str(asset.absolute_path))
     if pixmap.isNull():
         label.setText("素材無法預覽")
         return
-    target_size = QSize(480, 108) if label.objectName() == "assetPreview" else QSize(100, 100)
     label.setPixmap(
         pixmap.scaled(
             target_size,

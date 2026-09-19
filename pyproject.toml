@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "task-assignment"
-version = "9.1.1"
+version = "9.1.2"
 description = "A local-first Windows spaced-review planner."
 readme = "README.md"
 requires-python = ">=3.11"

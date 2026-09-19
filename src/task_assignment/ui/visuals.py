@@ -199,17 +199,21 @@ QTableWidget { gridline-color: #eeebf3; alternate-background-color: #faf9fc; }
 QHeaderView::section { background: #f1eef7; border: none; padding: 9px; color: #74738a; }
 QTableWidget#todayTasksTable { background: transparent; border: none; padding: 0; }
 QTableWidget#todayTasksTable::item { background: #ffffff; border-bottom: 1px solid #eeeaf5; }
-QFrame#reviewNameCell { background: #ffffff; }
-QFrame#reviewNoteCell { background: #f5f1ff; border: 1px solid #dfd5f2; border-radius: 12px; }
+QFrame#reviewNameCell { background: #ffffff; border: 1px solid #e5deee;
+    border-right: none; border-radius: 12px 0 0 12px; }
+QFrame#reviewNoteCell { background: #f5f1ff; border-top: 1px solid #dfd5f2;
+    border-bottom: 1px solid #dfd5f2; }
 QLabel#reviewTaskName { color: #252d49; font-size: 18px; font-weight: 800; }
 QLabel#reviewTaskMetadata { color: #807b94; font-size: 12px; }
 QLabel#reviewNoteHeading { color: #66539e; background: #e7def9; border-radius: 6px;
     padding: 3px 8px; font-size: 12px; font-weight: 700; }
 QLabel#reviewTaskNote { color: #4e5673; background: #ffffff; border: 1px solid #e8e0f3;
     border-radius: 8px; padding: 8px; font-size: 16px; }
-QFrame#todayTaskActionCell { background: #faf8ff; border-left: 1px solid #e8e1f2; }
+QFrame#todayTaskActionCell { background: #faf8ff; border: 1px solid #e2dceb;
+    border-left: none; border-radius: 0 12px 12px 0; }
 QPushButton#inlineCompleteButton, QPushButton#inlinePostponeButton {
-    min-width: 120px; min-height: 34px;
+    min-width: 120px; min-height: 40px; padding: 5px 12px; border-radius: 10px;
+    font-size: 16px; font-weight: 700;
 }
 QPushButton#inlineCompleteButton { background: #7460b4; color: #ffffff; border-color: #7460b4; }
 QPushButton#inlineCompleteButton:hover:enabled { background: #6551a3; }

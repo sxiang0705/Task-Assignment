@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, Qt, QTimer
-from PySide6.QtGui import QCloseEvent, QPixmap, QRegion, QResizeEvent, QShowEvent
+from PySide6.QtGui import QCloseEvent, QMovie, QPixmap, QRegion, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -100,6 +100,7 @@ class AppShell(QMainWindow):
         self.brand_label.setObjectName("brandLabel")
         navigation_layout.addWidget(self.brand_label)
         self.sticker_label = QLabel(navigation)
+        self.sticker_movie: QMovie | None = None
         self.sticker_label.setObjectName("stickerOverlay")
         self.sticker_label.setFixedSize(scaled(112), scaled(112))
         self.sticker_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -338,14 +339,28 @@ class AppShell(QMainWindow):
         except ServiceError:
             sticker = None
         if sticker is None or not sticker.available:
-            self.sticker_label.clear()
-            self.sticker_label.setText("貼圖")
+            self._show_sticker_placeholder()
             self.sticker_label.show()
+            return
+        self._clear_sticker_media()
+        if sticker.absolute_path.suffix.lower() == ".gif":
+            movie = QMovie(str(sticker.absolute_path))
+            movie.setCacheMode(QMovie.CacheMode.CacheAll)
+            movie.setScaledSize(self.sticker_label.size())
+            if not movie.isValid():
+                self._show_sticker_placeholder()
+                self.sticker_label.show()
+                return
+            self.sticker_movie = movie
+            self.sticker_label.setMovie(movie)
+            movie.start()
+            self._position_sticker()
+            self.sticker_label.show()
+            self.sticker_label.raise_()
             return
         pixmap = QPixmap(str(sticker.absolute_path))
         if pixmap.isNull():
-            self.sticker_label.clear()
-            self.sticker_label.setText("貼圖")
+            self._show_sticker_placeholder()
             self.sticker_label.show()
             return
         self.sticker_label.setPixmap(
@@ -359,6 +374,18 @@ class AppShell(QMainWindow):
         self._position_sticker()
         self.sticker_label.show()
         self.sticker_label.raise_()
+
+    def _clear_sticker_media(self) -> None:
+        if self.sticker_movie is not None:
+            self.sticker_movie.stop()
+            self.sticker_movie.deleteLater()
+            self.sticker_movie = None
+        self.sticker_label.setMovie(None)
+        self.sticker_label.setPixmap(QPixmap())
+
+    def _show_sticker_placeholder(self) -> None:
+        self._clear_sticker_media()
+        self.sticker_label.setText("貼圖")
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -381,6 +408,8 @@ class AppShell(QMainWindow):
     def _position_sticker(self) -> None:
         if not hasattr(self, "sticker_label"):
             return
+        if self.sticker_movie is not None:
+            self.sticker_movie.setScaledSize(self.sticker_label.size())
         self.sticker_label.setMask(QRegion(self.sticker_label.rect(), QRegion.RegionType.Ellipse))
 
     def _apply_style(self) -> None:
@@ -407,6 +436,11 @@ class AppShell(QMainWindow):
             reviews = self.page_widgets.get("reviews")
             if reviews is not None:
                 reviews.table.setColumnWidth(3, scaled(190))
+                for row in range(reviews.table.rowCount()):
+                    action_cell = reviews.table.cellWidget(row, 3)
+                    apply_scale = getattr(action_cell, "apply_scale", None)
+                    if apply_scale is not None:
+                        apply_scale()
                 QTimer.singleShot(0, reviews._resize_review_rows)
             self._position_sticker()
             self._move_indicator(self.navigation_group.checkedButton())
