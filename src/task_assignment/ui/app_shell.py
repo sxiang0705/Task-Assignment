@@ -104,7 +104,9 @@ class AppShell(QMainWindow):
         self.sticker_label.setFixedSize(scaled(112), scaled(112))
         self.sticker_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.sticker_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.sticker_label.hide()
+        self.sticker_label.setText("貼圖")
+        self.sticker_label.setToolTip("貼圖套用位置：Task Assignment 標題下方")
+        self.sticker_label.setAccessibleName("貼圖套用位置")
         navigation_layout.addWidget(self.sticker_label, alignment=Qt.AlignmentFlag.AlignHCenter)
         navigation_layout.addSpacing(14)
 
@@ -337,12 +339,14 @@ class AppShell(QMainWindow):
             sticker = None
         if sticker is None or not sticker.available:
             self.sticker_label.clear()
-            self.sticker_label.hide()
+            self.sticker_label.setText("貼圖")
+            self.sticker_label.show()
             return
         pixmap = QPixmap(str(sticker.absolute_path))
         if pixmap.isNull():
             self.sticker_label.clear()
-            self.sticker_label.hide()
+            self.sticker_label.setText("貼圖")
+            self.sticker_label.show()
             return
         self.sticker_label.setPixmap(
             pixmap.scaled(
@@ -400,6 +404,10 @@ class AppShell(QMainWindow):
             self.sticker_label.setMask(
                 QRegion(self.sticker_label.rect(), QRegion.RegionType.Ellipse)
             )
+            reviews = self.page_widgets.get("reviews")
+            if reviews is not None:
+                reviews.table.setColumnWidth(3, scaled(190))
+                QTimer.singleShot(0, reviews._resize_review_rows)
             self._position_sticker()
             self._move_indicator(self.navigation_group.checkedButton())
         finally:

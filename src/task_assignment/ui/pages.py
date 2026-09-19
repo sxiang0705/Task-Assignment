@@ -283,18 +283,31 @@ class _ReviewNoteCell(_ReviewSelectableCell):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(4)
-        heading = QLabel("備註")
-        heading.setObjectName("reviewNoteHeading")
-        heading.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        note = QLabel(item.description or "無說明／筆記")
-        note.setObjectName("reviewTaskNote")
-        note.setWordWrap(True)
-        note.setToolTip(item.description or "無說明／筆記")
-        note.setMaximumHeight(scaled(64))
-        note.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        layout.addWidget(heading)
-        layout.addWidget(note)
+        self.heading = QLabel("備註")
+        self.heading.setObjectName("reviewNoteHeading")
+        self.heading.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.note = QLabel(item.description or "無說明／筆記")
+        self.note.setObjectName("reviewTaskNote")
+        self.note.setWordWrap(True)
+        self.note.setToolTip(item.description or "無說明／筆記")
+        self.note.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.note.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout.addWidget(self.heading, 0)
+        layout.addWidget(self.note, 0)
         layout.addStretch(1)
+
+    def preferred_height(self, width: int) -> int:
+        """Return enough room for the wrapped note at the current column width."""
+
+        content_width = max(1, width - scaled(20))
+        note_height = self.note.heightForWidth(content_width)
+        return (
+            scaled(20)
+            + self.heading.sizeHint().height()
+            + scaled(4)
+            + note_height
+            + scaled(12)
+        )
 
 
 class _ReviewActionCell(QFrame):
@@ -313,6 +326,8 @@ class _ReviewActionCell(QFrame):
         self.postpone_button.setObjectName("inlinePostponeButton")
         self.complete_button.clicked.connect(self.complete_requested)
         self.postpone_button.clicked.connect(self.postpone_requested)
+        for button in (self.complete_button, self.postpone_button):
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         layout.addWidget(self.complete_button)
         layout.addWidget(self.postpone_button)
         layout.addStretch(1)
@@ -366,8 +381,9 @@ class TodayTasksPage(PageBase):
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(
-            3, QHeaderView.ResizeMode.ResizeToContents
+            3, QHeaderView.ResizeMode.Fixed
         )
+        self.table.setColumnWidth(3, scaled(190))
         self.table.itemSelectionChanged.connect(self._update_actions)
         self.root_layout.addWidget(self.table, 1)
 
@@ -479,8 +495,30 @@ class TodayTasksPage(PageBase):
             self.table.setCellWidget(row, 1, name_cell)
             self.table.setCellWidget(row, 2, note_cell)
             self.table.setCellWidget(row, 3, action_cell)
-            self.table.setRowHeight(row, max(scaled(96), action_cell.sizeHint().height()))
+            self.table.setRowHeight(row, scaled(112))
         self._update_actions()
+        QTimer.singleShot(0, self._resize_review_rows)
+
+    def _resize_review_rows(self) -> None:
+        """Resize each row independently so notes and actions never get clipped."""
+
+        if not hasattr(self, "table"):
+            return
+        note_width = self.table.columnWidth(2)
+        for row in range(self.table.rowCount()):
+            note_cell = self.table.cellWidget(row, 2)
+            action_cell = self.table.cellWidget(row, 3)
+            note_height = (
+                note_cell.preferred_height(note_width)
+                if isinstance(note_cell, _ReviewNoteCell)
+                else 0
+            )
+            action_height = action_cell.sizeHint().height() if action_cell is not None else 0
+            self.table.setRowHeight(row, max(scaled(112), note_height, action_height))
+
+    def resizeEvent(self, event: QEvent) -> None:
+        super().resizeEvent(event)
+        QTimer.singleShot(0, self._resize_review_rows)
 
     def _change_page(self, step: int) -> None:
         target = self._page_index + step

@@ -199,13 +199,17 @@ QTableWidget { gridline-color: #eeebf3; alternate-background-color: #faf9fc; }
 QHeaderView::section { background: #f1eef7; border: none; padding: 9px; color: #74738a; }
 QTableWidget#todayTasksTable { background: transparent; border: none; padding: 0; }
 QTableWidget#todayTasksTable::item { background: #ffffff; border-bottom: 1px solid #eeeaf5; }
-QFrame#reviewNameCell, QFrame#reviewNoteCell { background: #ffffff; }
+QFrame#reviewNameCell { background: #ffffff; }
+QFrame#reviewNoteCell { background: #f5f1ff; border: 1px solid #dfd5f2; border-radius: 12px; }
 QLabel#reviewTaskName { color: #252d49; font-size: 18px; font-weight: 800; }
-QLabel#reviewTaskMetadata, QLabel#reviewNoteHeading { color: #807b94; font-size: 12px; }
-QLabel#reviewTaskNote { color: #4e5673; font-size: 16px; }
+QLabel#reviewTaskMetadata { color: #807b94; font-size: 12px; }
+QLabel#reviewNoteHeading { color: #66539e; background: #e7def9; border-radius: 6px;
+    padding: 3px 8px; font-size: 12px; font-weight: 700; }
+QLabel#reviewTaskNote { color: #4e5673; background: #ffffff; border: 1px solid #e8e0f3;
+    border-radius: 8px; padding: 8px; font-size: 16px; }
 QFrame#todayTaskActionCell { background: #faf8ff; border-left: 1px solid #e8e1f2; }
 QPushButton#inlineCompleteButton, QPushButton#inlinePostponeButton {
-    min-width: 112px; min-height: 28px;
+    min-width: 120px; min-height: 34px;
 }
 QPushButton#inlineCompleteButton { background: #7460b4; color: #ffffff; border-color: #7460b4; }
 QPushButton#inlineCompleteButton:hover:enabled { background: #6551a3; }
@@ -239,7 +243,8 @@ QGroupBox::title { color: #685987; subcontrol-origin: margin; left: 12px; paddin
 QFrame#backupWarning { background: #fcf1db; border-radius: 10px; }
 QLabel#validationMessage { color: #b15361; }
 QLabel#validationMessage[valid="true"] { color: #56806a; }
-QLabel#stickerOverlay { background: #ffffff; border: 2px solid #d9c9f1; border-radius: 999px; }
+QLabel#stickerOverlay { background: #ffffff; color: #8a73bd; border: 2px solid #d9c9f1;
+    border-radius: 999px; font-size: 16px; font-weight: 700; }
 QLabel#stickerPreview { background: #fff; border: 1px solid #e2deea; border-radius: 12px; }
 QScrollBar:vertical { background: #f1eef5; width: 8px; border: none; }
 QScrollBar::handle:vertical { background: #c6bed6; min-height: 26px; border-radius: 4px; }
