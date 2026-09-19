@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "task-assignment"
+version = "9.1.0"
+description = "A local-first Windows spaced-review planner."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.7,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "PyInstaller>=6.10,<7",
+    "pytest>=8.2,<9",
+    "pytest-qt>=4.4,<5",
+    "ruff>=0.8,<1",
+]
+
+[project.scripts]
+task-assignment = "task_assignment.app:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
